@@ -1,3 +1,5 @@
+const axios = require('axios');
+
 const User = require('../models/user');
 
 const register = async (req, res, next) => {
@@ -39,11 +41,27 @@ const login = async (req, res, next) => {
   }
 }
 
-const favourites = (req, res, next) => {
-  res.status(200).json({ message: "reaching favourite-books route" });
+const getFavouriteBooks = async (req, res, next) => {
+  const favourites = '1,2,3,4'
+  const response = await axios.get('http://localhost:4000/book/get-books?favourites=' + favourites)
+
+  res.status(200).json({ message: "reaching favourite-books route", response: response.data });
 }
+
+const addFavouriteBook = async (req, res, next) => {
+  const bookId = req.body.bookId;
+  const currentUser = await User.findById('628e0f8aab8dd3469bcf2dcf');
+
+  currentUser.favourites.push({ bookId: bookId });
+  const user = currentUser.save();
+  //console.log(user);
+
+  res.status(200).json({ message: "reaching favourite-books route", response: user });
+}
+
 module.exports = {
   register,
   login,
-  favourites
+  getFavouriteBooks,
+  addFavouriteBook
 }
