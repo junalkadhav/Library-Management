@@ -19,7 +19,7 @@ const register = async (req, res, next) => {
     res.status(201).json({ message: "user registered successfully", user: registeredUser });
   }
   catch (err) {
-    console.log(err);
+    next(err);
   }
 }
 
@@ -37,26 +37,52 @@ const login = async (req, res, next) => {
     res.status(200).json({ message: "login successfull" });
   }
   catch (err) {
-    console.log(err);
+    next(err);
   }
 }
 
 const getFavouriteBooks = async (req, res, next) => {
-  const favourites = '1,2,3,4'
-  const response = await axios.get('http://localhost:4000/book/get-books?favourites=' + favourites)
+  try {
+    const user = await User.findById('628e0f8aab8dd3469bcf2dcf')
 
-  res.status(200).json({ message: "reaching favourite-books route", response: response.data });
+    let bookIds = "";
+    user.favourites.forEach(item => {
+      bookIds += item.bookId + ',';
+    })
+    bookIds = bookIds.slice(0, -1)
+    console.log(bookIds);
+
+    const response = await axios.get('http://localhost:4000/book/get-books?id=' + bookIds)
+
+    res.status(200).json({ message: "reaching favourite-books route", response: response.data });
+  }
+  catch (err) {
+    next(err);
+  }
 }
 
 const addFavouriteBook = async (req, res, next) => {
   const bookId = req.body.bookId;
-  const currentUser = await User.findById('628e0f8aab8dd3469bcf2dcf');
 
-  currentUser.favourites.push({ bookId: bookId });
-  const user = currentUser.save();
-  //console.log(user);
+  try {
 
-  res.status(200).json({ message: "reaching favourite-books route", response: user });
+    const currentUser = await User.findById('628e0f8aab8dd3469bcf2dcf');
+
+    currentUser.favourites.forEach(item => {
+      if (item.bookId.toString() === bookId.toString()) {
+        const err = new Error('book aready added to favourite')
+        err.statusCode = 400;
+        throw err;
+      }
+    })
+
+    currentUser.favourites.push({ bookId: bookId });
+    const user = currentUser.save();
+    res.status(200).json({ message: "reaching favourite-books route", response: user });
+  }
+  catch (err) {
+    next(err);
+  }
 }
 
 module.exports = {
