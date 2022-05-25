@@ -1,27 +1,32 @@
 const Book = require('../models/book');
 
-const getBooks = (req, res, next) => {
-  const favouriteBookIds = req.query.favourites;
-  if (favouriteBookIds) {
-    favbooks = favouriteBookIds.split(',');
-    return res.status(200).json({ favouriteBooks: favbooks });
+const getBooks = async (req, res, next) => {
+  const id = req.query.id;
+  console.log(id);
+  try {
+    if (id) {
+      ids = id.split(',');
+      console.log(ids);
+      const queryedBooks = await Book.find({ _id: ids });
+      return res.status(200).json({ message: 'queryed books successfully', books: queryedBooks });
+    }
+    else {
+      const books = await Book.find();
+      res.status(200).json({ message: 'fetched books successfully', books: books });
+    }
   }
-  res.status(200).json({ message: 'reached getBooks routes' });
-}
-
-//dont use this instead use single route i.e aboves
-const getBook = (req, res, next) => {
-  const bookId = req.params.bookId;
-  res.status(200).json({ message: 'reached single book routes ' + bookId });
+  catch (err) {
+    console.log(err);
+  }
 }
 
 const createBook = async (req, res, next) => {
   const title = req.body.title;
   const isbn = req.body.isbn;
   const publicationYear = req.body.publicationYear;
-  const authors = req.body.authors.split(",").map(author => author.trim());
-  const genres = req.body.genres.split(",").map(genre => genre.trim());
-  const awardsWon = req.body.awardsWon.split(",").map(award => award.trim());
+  const authors = req.body.authors;
+  const genres = req.body.genres;
+  const awardsWon = req.body.awardsWon;
 
   const book = new Book({
     title: title,
@@ -32,13 +37,38 @@ const createBook = async (req, res, next) => {
     awardsWon: awardsWon
   })
 
-  const createdBook = await book.save();
-  res.status(201).json({ message: 'created Book', book: createdBook });
+  try {
+    const createdBook = await book.save();
+    res.status(201).json({ message: 'created Book successfully', book: createdBook });
+  }
+  catch (err) {
+    console.log(err);
+  }
 }
 
-const updateBook = (req, res, next) => {
+const updateBook = async (req, res, next) => {
   const bookId = req.params.bookId;
-  res.status(200).json({ message: 'reached updateBook routes ' + bookId });
+  try {
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: 'inavalid book' });
+    }
+
+    book.title = req.body.title;
+    book.isbn = req.body.isbn;
+    book.publicationYear = req.body.publicationYear;
+    book.authors = req.body.authors;
+    book.genres = req.body.genres;
+    book.awardsWon = req.body.awardsWon;
+
+    console.log(book);
+
+    updatedBook = await book.save();
+    res.status(200).json({ message: 'reached updateBook routes ', book: updatedBook });
+  }
+  catch (err) {
+    console.log(err);
+  }
 }
 
 const deleteBook = (req, res, next) => {
@@ -48,7 +78,6 @@ const deleteBook = (req, res, next) => {
 
 module.exports = {
   getBooks,
-  getBook,
   createBook,
   updateBook,
   deleteBook

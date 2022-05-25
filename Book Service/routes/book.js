@@ -6,8 +6,6 @@ const router = Router();
 
 router.get('/get-books', bookController.getBooks);
 
-router.get('/book-details/:bookId', bookController.getBook);
-
 router.post('/create-book', bookController.createBook);
 
 router.put('/update-book/:bookId', bookController.updateBook);
