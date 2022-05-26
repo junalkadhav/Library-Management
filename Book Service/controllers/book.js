@@ -1,11 +1,52 @@
 const axios = require('axios');
 
 const Book = require('../models/book');
+const ROLES = require('../models/roles');
+
+const requestAuthenticator = async (req) => {
+  const authHeader = req.get('Authorization');
+  if (!authHeader) {
+    const error = new Error('Not authenticated.');
+    error.statusCode = 401;
+    throw error;
+  }
+  try {
+    const response = await axios.get("http://localhost:3000/user/authorize", {
+      headers: {
+        Authorization: authHeader
+      }
+    })
+    console.log(response.data)
+    return response.data;
+  }
+  catch (err) {
+    next(err);
+  }
+}
+
+const roleAuthorizer = (role, ...allowedRoles) => {
+
+  for (let i = 0; i < allowedRoles.length; i++) {
+    if (allowedRoles[i].toString() === role.toString()) {
+      return;
+    }
+  }
+
+  const error = new Error('Not authorized.');
+  error.statusCode = 403;
+  throw error;
+
+}
 
 const getBooks = async (req, res, next) => {
-  const id = req.query.id.split('=').pop().trim();
-  console.log(id);
   try {
+
+    const response = await requestAuthenticator(req);
+
+    roleAuthorizer(response.role, ROLES.USER, ROLES.ADMIN);
+
+    const id = req.query.id
+    // console.log(id);
     if (id) {
       ids = id.split(',').filter(id => {
         id = id.trim();
@@ -14,8 +55,15 @@ const getBooks = async (req, res, next) => {
         }
       });
       console.log(ids);
-      const queryedBooks = await Book.find({ _id: ids });
-      return res.status(200).json({ message: 'queryed books successfully', books: queryedBooks });
+      try {
+        const queryedBooks = await Book.find({ _id: ids });
+        return res.status(200).json({ message: 'queryed books successfully', books: queryedBooks });
+      }
+      catch (err) {
+        const error = new Error('Invalid input');
+        error.statusCode = 406;
+        throw error;
+      }
     }
     else {
       const books = await Book.find();
