@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const User = require('../models/user');
-const Roles = require('../models/roles');
+const ROLES = require('../models/roles');
 const Status = require('../models/status');
 
 const register = async (req, res, next) => {
@@ -20,14 +20,12 @@ const register = async (req, res, next) => {
     const name = req.body.name;
     const email = req.body.email;
     const password = req.body.password;
-
     const hashedPw = await bcrypt.hash(password, 12);
-
     const user = new User({
       name: name,
       email: email,
       password: hashedPw,
-      role: email.toString() === process.env.SUPER_ADMIN_EMAIL ? Roles.superAdmin : Roles.user
+      role: email.toString() === process.env.SUPER_ADMIN_EMAIL ? ROLES.SUPER_ADMIN : ROLES.USER
     })
     const registeredUser = await user.save();
     res.status(201).json({ message: "user registered successfully", userId: registeredUser._id });
@@ -44,7 +42,7 @@ const login = async (req, res, next) => {
   try {
     const user = await User.findOne({ email: email })
     if (!user) {
-      const error = new Error('A user with this email could not be found.');
+      const error = new Error('A user with this email could not be found.');//change it to invalid email or pass
       error.statusCode = 401;
       throw error;
     }
@@ -55,7 +53,7 @@ const login = async (req, res, next) => {
     }
     const isEqual = await bcrypt.compare(password, user.password);
     if (!isEqual) {
-      const error = new Error('Wrong password!');
+      const error = new Error('Wrong password!');//change it to invalid email or pass
       error.statusCode = 401;
       throw error;
     }

@@ -3,7 +3,8 @@ const { Router } = require('express');
 
 const User = require('../models/user');
 const userController = require('../controllers/user');
-const Auth = require('../auth/auth');
+const Auth = require('../controllers/auth');
+const Roles = require('../models/roles');
 
 const router = Router();
 
@@ -33,10 +34,10 @@ router.post('/register',
 
 router.post('/login', userController.login);
 
-router.get('/favourite-books', Auth.authUser, userController.getFavouriteBooks);
+router.get('/favourite-books', Auth.authenticateToken, Auth.authRole(Roles.user), userController.getFavouriteBooks);
 
-router.post('/add-favourite-book', Auth.authUser, userController.addFavouriteBook);
+router.post('/add-favourite-book', Auth.authenticateToken, Auth.authRole(Roles.user), userController.addFavouriteBook);
 
-router.post('/remove-favourite-book', Auth.authUser, userController.removeFavouriteBook);
+router.post('/remove-favourite-book', Auth.authenticateToken, Auth.authRole(Roles.user), userController.removeFavouriteBook);
 
 module.exports = router;
