@@ -25,7 +25,7 @@ const userSchema = new Schema({
   },
   favourites: [
     {
-      productId: { type: Schema.Types.ObjectId, required: true }
+      bookId: { type: Schema.Types.ObjectId, required: true }
     }
   ]
 });
