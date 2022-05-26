@@ -52,9 +52,16 @@ const getFavouriteBooks = async (req, res, next) => {
     bookIds = bookIds.slice(0, -1)
     console.log(bookIds);
 
-    const response = await axios.get('http://localhost:4000/book/get-books?id=' + bookIds)
+    let favBooks;
+    if (bookIds.trim() !== "") {
+      const response = await axios.get('http://localhost:4000/book/get-books?id=' + bookIds);
+      favBooks = response.data.books;
+    }
+    else {
+      favBooks = [];
+    }
 
-    res.status(200).json({ message: "reaching favourite-books route", response: response.data });
+    res.status(200).json({ message: "fetch successfull", favBooks: favBooks });
   }
   catch (err) {
     next(err);
@@ -63,7 +70,6 @@ const getFavouriteBooks = async (req, res, next) => {
 
 const addFavouriteBook = async (req, res, next) => {
   const bookId = req.body.bookId;
-
   try {
 
     const currentUser = await User.findById('628e0f8aab8dd3469bcf2dcf');
@@ -77,17 +83,42 @@ const addFavouriteBook = async (req, res, next) => {
     })
 
     currentUser.favourites.push({ bookId: bookId });
-    const user = currentUser.save();
-    res.status(200).json({ message: "reaching favourite-books route", response: user });
+    const user = await currentUser.save();
+    res.status(200).json({ message: "added favourite book successfully", response: user });
   }
   catch (err) {
     next(err);
   }
 }
 
+const removeFavouriteBook = async (req, res, next) => {
+  const bookId = req.body.bookId;
+  console.log(bookId)
+  const currentUser = await User.findById('628e0f8aab8dd3469bcf2dcf');
+  let isFavourite = false;
+  const newFavourites = currentUser.favourites.filter(item => {
+    if (item.bookId.toString() !== bookId.toString()) {
+      return item;
+    } else {
+      isFavourite = true;
+    }
+  })
+
+  currentUser.favourites = newFavourites;
+  const user = await currentUser.save();
+  if (isFavourite) {
+    res.status(200).json({ message: "removed book from favourites", response: user });
+  }
+  else {
+    res.status(200).json({ message: "book is not there in favourites", response: user });
+  }
+
+}
+
 module.exports = {
   register,
   login,
   getFavouriteBooks,
-  addFavouriteBook
+  addFavouriteBook,
+  removeFavouriteBook
 }

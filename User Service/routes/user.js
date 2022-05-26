@@ -12,4 +12,6 @@ router.get('/favourite-books', userController.getFavouriteBooks);
 
 router.post('/add-favourite-book', userController.addFavouriteBook);
 
+router.post('/remove-favourite-book', userController.removeFavouriteBook);
+
 module.exports = router;
