@@ -1,11 +1,18 @@
+const axios = require('axios');
+
 const Book = require('../models/book');
 
 const getBooks = async (req, res, next) => {
-  const id = req.query.id;
+  const id = req.query.id.split('=').pop().trim();
   console.log(id);
   try {
     if (id) {
-      ids = id.split(',');
+      ids = id.split(',').filter(id => {
+        id = id.trim();
+        if (id.toString() !== "") {
+          return id;
+        }
+      });
       console.log(ids);
       const queryedBooks = await Book.find({ _id: ids });
       return res.status(200).json({ message: 'queryed books successfully', books: queryedBooks });
@@ -16,7 +23,7 @@ const getBooks = async (req, res, next) => {
     }
   }
   catch (err) {
-    console.log(err);
+    next(err);
   }
 }
 
@@ -42,7 +49,7 @@ const createBook = async (req, res, next) => {
     res.status(201).json({ message: 'created Book successfully', book: createdBook });
   }
   catch (err) {
-    console.log(err);
+    next(err);
   }
 }
 
@@ -67,13 +74,30 @@ const updateBook = async (req, res, next) => {
     res.status(200).json({ message: 'reached updateBook routes ', book: updatedBook });
   }
   catch (err) {
-    console.log(err);
+    next(err);
   }
 }
 
-const deleteBook = (req, res, next) => {
+const deleteBook = async (req, res, next) => {
   const bookId = req.params.bookId;
-  res.status(200).json({ message: 'reached deleteBook routes ' + bookId });
+  try {
+    const deletedBook = await Book.findByIdAndDelete(bookId);
+
+
+    if (deletedBook) {
+      //removing the deleted book from the users favourite
+      axios.post('http://localhost:3000/user/remove-favourite-book', {
+        bookId: bookId
+      })
+      return res.status(200).json({ message: 'deleted book successfully ', book: deletedBook });
+    }
+    else {
+      res.status(400).json({ message: 'could not delete the book, make sure it exists before deleting' });
+    }
+  }
+  catch (err) {
+    next(err);
+  }
 }
 
 module.exports = {
