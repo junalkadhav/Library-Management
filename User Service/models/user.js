@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 
+const Roles = require('./roles');
+const Status = require('./status');
+
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
@@ -17,11 +20,11 @@ const userSchema = new Schema({
   },
   role: {
     type: String,
-    required: true,
+    default: Roles.user
   },
   status: {
     type: String,
-    default: 'active'
+    default: Status.active
   },
   favourites: [
     {

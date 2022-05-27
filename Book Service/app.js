@@ -10,18 +10,22 @@ const MONGO_DB_CONNECTION_URI =
 
 const app = express();
 
+//parsing every incoming request
 app.use(bodyParser.json());
 
+//specifying routes incoming requests can reach
 app.use('/book', bookRoutes);
 
+//common error handler for controller functions
 app.use((error, req, res, next) => {
   console.log(error);
   const status = error.statusCode || 500;
   const message = error.message;
   const data = error.data;
-  res.status(status).json({ message: message });
+  res.status(status).json({ message: message, errorData: data });
 });
 
+//connecting to database
 mongoose.connect(MONGO_DB_CONNECTION_URI)
   .then(result => {
     app.listen(process.env.PORT || 4000);
