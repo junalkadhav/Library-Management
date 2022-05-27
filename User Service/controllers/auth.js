@@ -1,5 +1,12 @@
 const jwt = require('jsonwebtoken');
 
+/**
+ * Authenticates the request
+ * If request is valid then is forwarded to next middleware, else throws error
+ * @param {Request} req incoming request object
+ * @param {Response} res outgoing response object
+ * @param {Function} next function to make a call to next middleware
+ */
 const authenticateToken = (req, res, next) => {
   const authHeader = req.get('Authorization');
   if (!authHeader) {
@@ -21,22 +28,38 @@ const authenticateToken = (req, res, next) => {
     error.statusCode = 401;
     throw error;
   }
-  console.log('token valid')
   req.userId = decodedToken.userId;
   req.role = decodedToken.role;
   next();
 };
 
-//function to authorize user from different micro service
+/**
+ * Function Description:
+ * This function is used only for request's coming from other micro service's(ex.> Book service)
+ * This method is used after the authenticateToken method so that if the incoming request is valid 
+ * it can sen a valid response
+ * @param {Request} req incoming request object
+ * @param {Response} res outgoing response object
+ * @param {Function} next function to make a call to next middleware
+ * @returns json response object
+ */
 const authorizeUser = (req, res, next) => {
   res.json({ success: true, userId: req.userId, role: req.role })
 }
 
+/**
+ * Function Description
+ * This function returns middleware function that is to be executed when this method is called
+ * which then compares the role and authorizes the user, throws error if roles dont match
+ * @param {string} role 
+ * @returns {Function} - anonymous middleware function
+ */
 const authRole = (role) => {
   return (req, res, next) => {
     if (req.role !== role) {
-      res.status(401)
-      return res.send('Not authorized')
+      const error = new Error('Not authorized.');
+      error.statusCode = 401;
+      throw error;
     }
     next();
   };
