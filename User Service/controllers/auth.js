@@ -35,38 +35,41 @@ const authenticateToken = (req, res, next) => {
 
 /**
  * Function Description:
- * This function is used only for request's coming from other micro service's(ex.> Book service)
- * This method is used after the authenticateToken method so that if the incoming request is valid 
- * it can sen a valid response
+ * This function is runs only for request's coming from other micro service's(ex.> Book service)
+ * This method is used after the authenticateToken method so that if the incoming request is valid, 
+ * it can sen a valid response with required data
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
  * @returns json response object
  */
 const authorizeUser = (req, res, next) => {
-  res.json({ success: true, userId: req.userId, role: req.role })
+  return res.json({ success: true, userId: req.userId, role: req.role })
 }
 
 /**
- * Function Description
- * This function returns middleware function that is to be executed when this method is called
- * which then compares the role and authorizes the user, throws error if roles dont match
+ * Function Description:
+ * This function returns middleware function which is to be executed when this method is called
+ * This middleware function then compares the role from incoming request and roles passed
+ * Atleast one role should match, else throws error
  * @param {string} role 
- * @returns {Function} - anonymous middleware function
+ * @returns {Function} - middleware function
  */
-const authRole = (role) => {
+const authorizeUserRole = (...allowedRoles) => {
   return (req, res, next) => {
-    if (req.role !== role) {
-      const error = new Error('Not authorized.');
-      error.statusCode = 401;
-      throw error;
+    for (let i = 0; i < allowedRoles.length; i++) {
+      if (allowedRoles[i].toString() === req.role.toString()) {
+        return next();
+      }
     }
-    next();
-  };
+    const error = new Error('Not authorized.');
+    error.statusCode = 403;
+    throw error;
+  }
 }
 
 module.exports = {
   authenticateToken,
   authorizeUser,
-  authRole
+  authorizeUserRole
 };

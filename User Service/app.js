@@ -20,13 +20,12 @@ app.use('/user', authRoutes);
 
 //common middleware to handle error thrown by controllers
 app.use((error, req, res, next) => {
-  console.log('here')
   console.log(error);
   const err = {};
   const status = error.statusCode || 500;
   err.message = error.message;
   if (error.data) {
-    err.errorData = error.data;
+    err.data = error.data;
   }
   res.status(status).json(err);
 });
