@@ -12,7 +12,7 @@ const bookSchema = new Schema({
     required: true
   },
   publicationYear: {
-    type: Number,
+    type: String,
     required: true
   },
   authors: {

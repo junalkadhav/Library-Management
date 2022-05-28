@@ -1,51 +1,6 @@
-const axios = require('axios');
 const { validationResult } = require('express-validator');
 
 const Book = require('../models/book');
-const ROLES = require('../models/roles');
-
-/**
- * Authenticates a request and returns response, throws error if req is unauthenticated. 
- * @param {Request} req - incoming request object
- * @returns response.data
- */
-const requestAuthenticator = async (req) => {
-  const authHeader = req.get('Authorization');
-  if (!authHeader) {
-    const error = new Error('Not authenticated.');
-    error.statusCode = 401;
-    throw error;
-  }
-  try {
-    const response = await axios.get(process.env.USER_SERVICE_URL + "/authorize", {
-      headers: {
-        Authorization: authHeader
-      }
-    })
-    return response.data;
-  }
-  catch (err) {
-    if (err.statusCode)
-      err.statusCode = err.response.status;
-    throw (err);
-  }
-}
-
-/**
- * Returns (void) if user is authorized, else throws error.
- * @param {string} role - role of the user who made the request.
- * @param  {...string} allowedRoles - allowed roles to match with
- */
-const roleAuthorizer = (role, ...allowedRoles) => {
-  for (let i = 0; i < allowedRoles.length; i++) {
-    if (allowedRoles[i].toString() === role.toString()) {
-      return;
-    }
-  }
-  const error = new Error('Not authorized.');
-  error.statusCode = 403;
-  throw error;
-}
 
 /**
  * Checks if book fields are valid, else throws error
@@ -62,7 +17,7 @@ const validateBookFields = (req) => {
 }
 
 /**
- * Fetches the books, if query params present fethes those books else all books.
+ * Fetches the books, if query params present fetches those books else all books.
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -70,33 +25,75 @@ const validateBookFields = (req) => {
  */
 const getBooks = async (req, res, next) => {
   try {
-    //authenticating & authorizing(role)
-    const response = await requestAuthenticator(req);
-    roleAuthorizer(response.role, ROLES.USER, ROLES.ADMIN);
+    //params for pagination
+    const currentPage = req.query.page || 1; //current page value
+    const booksPerPage = 2; //total no of books per page to be displayed
 
-    const id = req.query.id  //book id's to fetch
-    if (id) {
-      //code to create a array of ids, so to pass it to find method
-      ids = id.split(',').filter(id => {
-        id = id.trim();
-        if (id.toString() !== "") {
-          return id;
-        }
-      });
+    //id represents book id(s) [seperated with comma "," if multiple] is of type string
+    let id;
+    if (req.query.id) {
+      id = req.query.id.trim().split(','); //converting id(s) to array to pass it to "Book.find(..)" method for querying
+    }
+    //search represents search parameter from request query parameter is of type string
+    if (req.query.search) {
+      req.query.search = req.query.search.trim();
+    }
+
+    //if "search" exist in request body then this if-else-if block will be executed 
+    const search = req.query.search;
+    if (search) {
       try {
-        const queryedBooks = await Book.find({ _id: ids }); //passing array of id's to fetch them
-        return res.status(200).json({ message: 'queryed books successfully', books: queryedBooks });
+        //count total books matching search criteria
+        const totalBooks = await Book.find({ $or: [{ title: search }, { isbn: search }, { publicationYear: search }, { authors: search }, { awardsWon: search }, { genres: search }] }).countDocuments();
+        //passing search query to find appropriate books in particular fields
+        const queryedBooks = await Book
+          .find({
+            $or: [
+              { title: search },
+              { isbn: search },
+              { publicationYear: search },
+              { authors: search },
+              { awardsWon: search },
+              { genres: search }
+            ]
+          })
+          //code to fetch data according to the pagination logic
+          .skip((currentPage - 1) * booksPerPage)
+          .limit(booksPerPage);
+        return res.status(200).json({ message: 'Searched books successfully!', totalResultsFound: totalBooks, books: queryedBooks });
+      }
+      catch (err) {
+        console.log(err);
+        const error = new Error('Sorry, could not find anything, try searching something else!');
+        error.statusCode = 404;
+        throw error;
+      }
+    } else if (search === "") { //if search is empty instead of fetching all books as search will be undefined return no results
+      return res.status(200).json({ message: 'Searched books successfully!', totalResultsFound: 0, books: [] });
+    }
+
+    //if id(s) exist then fetch those particular books
+    if (id) {
+      try {
+        //count total no of books depending on the valid id(s)
+        const totalBooks = await Book.find({ _id: id }).countDocuments();
+        //passing array of id(s) to fetch book(s)
+        const queryedBooks = await Book.find({ _id: id })
+          //code to fetch data according to the pagination logic
+          .skip((currentPage - 1) * booksPerPage)
+          .limit(booksPerPage);
+        return res.status(200).json({ message: 'Queryed books successfully!', totalBooks: totalBooks, books: queryedBooks });
       }
       catch (err) {
         const error = new Error('Invalid Book'); //if atleast one id is invalid 
         error.statusCode = 404;
-        next(error);
+        throw error;
       }
     }
-    else {
-      const books = await Book.find();
-      res.status(200).json({ message: 'fetched books successfully', books: books }); //return success response
-    }
+    //if no query paramerters passed fetch all books
+    const totalBooks = await Book.find().countDocuments();
+    const books = await Book.find().skip((currentPage - 1) * booksPerPage).limit(booksPerPage);
+    return res.status(200).json({ message: 'Fetched books successfully!', totalBooks: totalBooks, books: books }); //return success response
   }
   catch (err) {
     next(err);
@@ -112,12 +109,8 @@ const getBooks = async (req, res, next) => {
  */
 const createBook = async (req, res, next) => {
   try {
-    //authenticating & authorizing(role)
-    const response = await requestAuthenticator(req);
-    roleAuthorizer(response.role, ROLES.ADMIN);
 
-    //validating book fields (title,isbn,.....etc)
-    validateBookFields(req);
+    validateBookFields(req); //validating book fields (title,isbn,.....etc)
 
     const title = req.body.title;
     const isbn = req.body.isbn;
@@ -135,7 +128,7 @@ const createBook = async (req, res, next) => {
       awardsWon: awardsWon
     })
     const createdBook = await book.save();
-    res.status(201).json({ message: 'created Book successfully', book: createdBook });
+    return res.status(201).json({ message: 'Book created successfully!', book: createdBook });
   }
   catch (err) {
     next(err);
@@ -152,12 +145,8 @@ const createBook = async (req, res, next) => {
 const updateBook = async (req, res, next) => {
   const bookId = req.params.bookId;
   try {
-    //authenticating & authorizing(role)
-    const response = await requestAuthenticator(req);
-    roleAuthorizer(response.role, ROLES.ADMIN);
 
-    //validating book fields (title,isbn,.....etc)
-    validateBookFields(req);
+    validateBookFields(req); //validating book fields (title,isbn,.....etc)
 
     const book = await Book.findById(bookId);
     if (!book) {
@@ -174,7 +163,7 @@ const updateBook = async (req, res, next) => {
     console.log(book);
 
     updatedBook = await book.save();
-    res.status(200).json({ message: 'reached updateBook routes ', book: updatedBook });
+    return res.status(200).json({ message: 'Book updated successfully!', book: updatedBook });
   }
   catch (err) {
     next(err);
@@ -191,16 +180,12 @@ const updateBook = async (req, res, next) => {
 const deleteBook = async (req, res, next) => {
   const bookId = req.params.bookId;
   try {
-    //authenticating & authorizing(role)
-    const response = await requestAuthenticator(req);
-    roleAuthorizer(response.role, ROLES.ADMIN);
 
     const deletedBook = await Book.findByIdAndDelete(bookId);
     if (!deletedBook) {
-      res.status(404).json({ message: 'Invalid Book!' });
+      return res.status(404).json({ message: 'Invalid Book!' });
     }
-
-    return res.status(200).json({ message: 'Book deleted successfully', book: deletedBook });
+    return res.status(200).json({ message: 'Book deleted successfully!', book: deletedBook });
   }
   catch (err) {
     next(err);

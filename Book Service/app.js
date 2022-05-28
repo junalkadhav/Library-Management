@@ -19,10 +19,13 @@ app.use('/book', bookRoutes);
 //common error handler for controller functions
 app.use((error, req, res, next) => {
   console.log(error);
+  const err = {};
   const status = error.statusCode || 500;
-  const message = error.message;
-  const data = error.data;
-  res.status(status).json({ message: message, errorData: data });
+  err.message = error.message;
+  if (error.data) {
+    err.data = error.data;
+  }
+  res.status(status).json(err);
 });
 
 //connecting to database
