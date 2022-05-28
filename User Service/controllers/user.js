@@ -6,10 +6,10 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const ROLES = require('../models/roles');
 const Status = require('../models/status');
+const { response } = require('express');
 
 /**
  * Registers user/Adds user to database
- * *Accessible by everyone
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -28,10 +28,11 @@ const register = async (req, res, next) => {
       name: name,
       email: email,
       password: hashedPw,
+      //assigning role of super admin if the email matches the super-admin email defined in the environmental variable,else  user role 
       role: email.toString() === process.env.SUPER_ADMIN_EMAIL ? ROLES.SUPER_ADMIN : ROLES.USER
     })
     const registeredUser = await user.save();
-    res.status(201).json({ message: "user registered successfully", userId: registeredUser._id });
+    return res.status(201).json({ message: "user registered successfully", userId: registeredUser._id });
   }
   catch (err) {
     next(err);
@@ -40,7 +41,6 @@ const register = async (req, res, next) => {
 
 /**
  * Logs in the user if provided credentials are valid
- * *Accessible by everyone
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -52,11 +52,14 @@ const login = async (req, res, next) => {
 
   try {
     const user = await User.findOne({ email: email })
+
+    //creating common error for invalid email and password
+    const invalidError = new Error('Invalid email or password');
+    invalidError.statusCode = 401;
+
     //checking if user exists
     if (!user) {
-      const error = new Error('A user with this email could not be found.');//change it to invalid email or pass
-      error.statusCode = 401;
-      throw error;
+      throw invalidError;
     }
     //checking user status
     if (user.status.toString() === Status.disabled) {
@@ -67,11 +70,10 @@ const login = async (req, res, next) => {
     //compairng the user password
     const isEqual = await bcrypt.compare(password, user.password);
     if (!isEqual) {
-      const error = new Error('Wrong password!');//change it to invalid email or pass
-      error.statusCode = 401;
-      throw error;
+      throw invalidError;
     }
-    //creating a new token upon passing above checks
+
+    //creating a new token after passing above checks
     const token = jwt.sign(
       {
         email: user.email,
@@ -81,7 +83,7 @@ const login = async (req, res, next) => {
       process.env.JSON_TOKEN_SECRET_KEY,
       { expiresIn: '10h' }
     );
-    res.status(200).json({ message: 'login success', token: token });//returning the token
+    return res.status(200).json({ message: 'login success', token: token });//returning the token
   }
   catch (err) {
     next(err);
@@ -90,7 +92,6 @@ const login = async (req, res, next) => {
 
 /**
  * Fetches all user favourite books based on bookId's stored in user's favourite book collection
- * *Accessible by USERS
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -98,6 +99,9 @@ const login = async (req, res, next) => {
  */
 const getFavouriteBooks = async (req, res, next) => {
   try {
+    //query params to navigate through pages
+    const currentPage = req.query.page || 1; //if undefined set to 1st page
+
     //fetching and validating current user
     const user = await User.findById(req.userId)
     isUserValid(user);
@@ -111,6 +115,7 @@ const getFavouriteBooks = async (req, res, next) => {
     //console.log(bookIds);
 
     let favBooks = [];
+    let totalfavouriteBooks = 0;
     //if book id's exist then:
     if (bookIds.trim() !== "") {
       try {
@@ -120,24 +125,26 @@ const getFavouriteBooks = async (req, res, next) => {
           error.statusCode = 401;
           throw error;
         }
-        //make a call to book service to fetch the book with ids
-        const response = await axios.get(process.env.BOOK_SERVICE_URL + '/get-books?id=' + bookIds, {
+        //make a call to book service to fetch the book with ids also pass current page to fetch data according to pagination
+        const response = await axios.get(process.env.BOOK_SERVICE_URL + `/get-books?id=${bookIds}&page=${currentPage}`, {
           headers: {
             Authorization: authHeader
           }
         });
         favBooks = response.data.books;
+        totalfavouriteBooks = response.data.totalBooks;
       }
       catch (err) {
-        //if a service(call via axios) is up and running the error data is present inside response object else directly throwing it
+        //if axios serivce call fails then erorr data is inside err.response object extracting that data
         if (err.response) {
-          err.message = err.response.data.message;
           err.statusCode = err.response.status;
+          err.message = err.response.statusText;
+          err.data = 'Could not find url';
         }
         throw err;
       }
     }
-    return res.status(200).json({ message: "fetch successfull", favBooks: favBooks });
+    return res.status(200).json({ message: "fetch successfull", totalfavouriteBooks: totalfavouriteBooks, favBooks: favBooks });
   }
   catch (err) {
     next(err);
@@ -146,7 +153,6 @@ const getFavouriteBooks = async (req, res, next) => {
 
 /**
  * Adds a book id to user's favourite book collection
- * *Accessible by USERS
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -168,7 +174,14 @@ const addFavouriteBook = async (req, res, next) => {
     }
     //if got no error then add it to favs
     currentUser.favourites.push({ bookId: bookId });
-    await currentUser.save();
+    try {
+      await currentUser.save();
+    }
+    catch (err) {
+      const error = new Error('Cannot add invalid Book to favourites')
+      error.statusCode = 404;
+      throw error;
+    }
     return res.status(200).json({ message: "Added book to favourites successfully" });
   }
   catch (err) {
@@ -178,7 +191,6 @@ const addFavouriteBook = async (req, res, next) => {
 
 /**
  * Removes a book id from user's favourite book collection
- * *Accessible by USERS
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -215,25 +227,27 @@ const removeFavouriteBook = async (req, res, next) => {
 
 /**
  * Fetches User(s) from the database
- * *Accessible by SUPER-ADMIN
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
  * @returns json response object 
  */
 const getUsers = async (req, res, next) => {
+  if (req.query.id) {
+    req.query.id = req.query.id.trim();
+  }
   const id = req.query.id;
   try {
     if (id) {
       try {
-        const user = await User.findById({ _id: id }, "-password").select('-favourites');//passing the id to fetch user excluding password
+        const user = await User.findById({ _id: id }, "-password").select('-favourites');//passing the id to fetch user excluding sensitive data
         return res.status(200).json({ message: 'fetched user', user: user });
       }
       catch (err) {
         return res.status(404).json({ message: 'User not found' });
       }
     }
-    const users = await User.find().select('-password').select('-favourites');//fetching all users excluding password
+    const users = await User.find().select('-password').select('-favourites');//fetching all users excluding their sensitive data
     return res.status(200).json({ message: 'fetched users[]', users: users });
   }
   catch (err) {
@@ -243,7 +257,6 @@ const getUsers = async (req, res, next) => {
 
 /**
  * Updates user permission and role
- * Accessible by SUPER-ADMIN
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
@@ -281,7 +294,7 @@ const updateUserPermissions = async (req, res, next) => {
 }
 
 /**
- * This method validates wether the request body input's are valid as defined in routes, if not throws error.
+ * This method validates wether the request body input's are valid as defined in routes, if not throws error.(helper function)
  * @param {Request} req - incoming request object
  */
 const validateBodyFields = (req) => {
@@ -295,7 +308,7 @@ const validateBodyFields = (req) => {
 }
 
 /**
- * Throws error if user is not valid
+ * Throws error if user is not valid (helper function)
  * @param {object} user - user object based on mongoose model
  */
 const isUserValid = (user) => {
