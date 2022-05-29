@@ -27,38 +27,40 @@ const getBooks = async (req, res, next) => {
   try {
     //params for pagination
     const currentPage = req.query.page || 1; //current page value
-    const booksPerPage = 2; //total no of books per page to be displayed
+    const booksPerPage = 4; //total no of books per page to be displayed
 
-    //id represents book id(s) [seperated with comma "," if multiple] is of type string
-    let id;
-    if (req.query.id) {
-      id = req.query.id.trim().split(','); //converting id(s) to array to pass it to "Book.find(..)" method for querying
+    //id represents book id(s) (seperated with comma "," if multiple)
+    let id = req.query.id;
+    if (id) {
+      id = id.trim();
+      if (id !== "") { // check if id is not an empty string
+        id = id.split(','); //converting id(s) to array to pass it to "Book.find(..)" method for querying
+      }
     }
-    //search represents search parameter from request query parameter is of type string
+    //search represents search-parameter from incoming request
     if (req.query.search) {
       req.query.search = req.query.search.trim();
     }
 
-    //if "search" exist in request body then this if-else-if block will be executed 
+    //if "search" exist in request body then execute this if else-if block
     const search = req.query.search;
     if (search) {
       try {
-        //count total books matching search criteria
-        const totalBooks = await Book.find({ $or: [{ title: search }, { isbn: search }, { publicationYear: search }, { authors: search }, { awardsWon: search }, { genres: search }] }).countDocuments();
+        //count the total books matching search criteria
+        const totalBooks = await Book.find({ $or: [{ title: { '$regex': search, $options: 'i' } }, { isbn: { '$regex': search, $options: 'i' } }, { publicationYear: { '$regex': search, $options: 'i' } }, { authors: { '$regex': search, $options: 'i' } }, { awardsWon: { '$regex': search, $options: 'i' } }, { genres: { '$regex': search, $options: 'i' } }] }).countDocuments();
         //passing search query to find appropriate books in particular fields
         const queryedBooks = await Book
           .find({
             $or: [
-              { title: search },
-              { isbn: search },
-              { publicationYear: search },
-              { authors: search },
-              { awardsWon: search },
-              { genres: search }
+              { title: { '$regex': search, $options: 'i' } },
+              { isbn: { '$regex': search, $options: 'i' } },
+              { publicationYear: { '$regex': search, $options: 'i' } },
+              { authors: { '$regex': search, $options: 'i' } },
+              { awardsWon: { '$regex': search, $options: 'i' } },
+              { genres: { '$regex': search, $options: 'i' } }
             ]
           })
-          //code to fetch data according to the pagination logic
-          .skip((currentPage - 1) * booksPerPage)
+          .skip((currentPage - 1) * booksPerPage) //code to fetch data according to the pagination logic
           .limit(booksPerPage);
         return res.status(200).json({ message: 'Searched books successfully!', totalResultsFound: totalBooks, books: queryedBooks });
       }
@@ -68,7 +70,8 @@ const getBooks = async (req, res, next) => {
         error.statusCode = 404;
         throw error;
       }
-    } else if (search === "") { //if search is empty instead of fetching all books as search will be undefined return no results
+    }
+    else if (search === "") { //if search is empty instead of fetching all books as search will be undefined return no results
       return res.status(200).json({ message: 'Searched books successfully!', totalResultsFound: 0, books: [] });
     }
 
