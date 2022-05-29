@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const ROLES = require('../models/roles');
 const Status = require('../models/status');
-const { response } = require('express');
 
 /**
  * Registers user/Adds user to database
@@ -35,7 +34,7 @@ const register = async (req, res, next) => {
     return res.status(201).json({ message: "user registered successfully", userId: registeredUser._id });
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
@@ -86,7 +85,7 @@ const login = async (req, res, next) => {
     return res.status(200).json({ message: 'login success', token: token });//returning the token
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
@@ -99,12 +98,11 @@ const login = async (req, res, next) => {
  */
 const getFavouriteBooks = async (req, res, next) => {
   try {
+    //fetch user and validate current user id
+    const user = await isUserValid(req.userId);
+
     //query params to navigate through pages
     const currentPage = req.query.page || 1; //if undefined set to 1st page
-
-    //fetching and validating current user
-    const user = await User.findById(req.userId)
-    isUserValid(user);
 
     //creating a string of all favourite book id's seperated with ","
     let bookIds = "";
@@ -147,7 +145,7 @@ const getFavouriteBooks = async (req, res, next) => {
     return res.status(200).json({ message: "fetch successfull", totalfavouriteBooks: totalfavouriteBooks, favBooks: favBooks });
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
@@ -162,9 +160,8 @@ const addFavouriteBook = async (req, res, next) => {
   const bookId = req.body.bookId;
   try {
 
-    //fetching and validating current user
-    const currentUser = await User.findById(req.userId);
-    isUserValid(currentUser);
+    //fetch user and validate current user id
+    const currentUser = await isUserValid(req.userId);
 
     //check if book exists in favourites already
     for (let i = 0; i < currentUser.favourites.length; i++) {
@@ -185,7 +182,7 @@ const addFavouriteBook = async (req, res, next) => {
     return res.status(200).json({ message: "Added book to favourites successfully" });
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
@@ -200,9 +197,8 @@ const removeFavouriteBook = async (req, res, next) => {
   const bookId = req.body.bookId;
   //console.log(bookId);
   try {
-    //fetching and validating current user
-    const currentUser = await User.findById(req.userId);
-    isUserValid(currentUser);
+    //fetch user and validate current user id
+    const currentUser = await isUserValid(req.userId);
 
     let isFavourite = false;
     let newFavourites = [...currentUser.favourites];
@@ -221,23 +217,25 @@ const removeFavouriteBook = async (req, res, next) => {
     return res.status(404).json({ message: 'Book does not exist in favourites' });
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
 /**
- * Fetches User(s) from the database
+ * Fetches User(s) from the database (Get's a particular user based on id if present) else, fetch's all users
  * @param {Request} req incoming request object
  * @param {Response} res outgoing response object
  * @param {Function} next function to make a call to next middleware
  * @returns json response object 
  */
 const getUsers = async (req, res, next) => {
-  if (req.query.id) {
-    req.query.id = req.query.id.trim();
+  let id = req.query.id; //user id to fetch
+  if (id) {
+    id = id.trim();
   }
-  const id = req.query.id;
+
   try {
+    //if id is not empty after trimming execute this if block
     if (id) {
       try {
         const user = await User.findById({ _id: id }, "-password").select('-favourites');//passing the id to fetch user excluding sensitive data
@@ -247,11 +245,12 @@ const getUsers = async (req, res, next) => {
         return res.status(404).json({ message: 'User not found' });
       }
     }
+    //else fetch all users
     const users = await User.find().select('-password').select('-favourites');//fetching all users excluding their sensitive data
     return res.status(200).json({ message: 'fetched users[]', users: users });
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
@@ -268,19 +267,12 @@ const updateUserPermissions = async (req, res, next) => {
     //validate user fields (ex.> role ,status)
     validateBodyFields(req);
 
-    let user;
-    try {
-      //fetch and validate the user
-      user = await User.findById(userId)
-      isUserValid(user);
+    //fetch user and validate current user id
+    const user = await isUserValid(userId);
 
-      //prevent changing role/status of super admin
-      if (user.email === process.env.SUPER_ADMIN_EMAIL) {
-        return res.status(403).json({ message: 'Cannot update Super Admin' });
-      }
-    }
-    catch (err) {
-      return res.status(404).json({ message: 'User not found' });
+    //prevent changing role/status of super admin
+    if (user.email === process.env.SUPER_ADMIN_EMAIL) {
+      return res.status(403).json({ message: 'Cannot update Super Admin' });
     }
 
     user.role = req.body.role;
@@ -289,7 +281,7 @@ const updateUserPermissions = async (req, res, next) => {
     return res.status(200).json({ message: 'Updated User Status/Role ', role: updatedUser.role, status: updatedUser.status });
   }
   catch (err) {
-    next(err);
+    return errorHandler(err, next);
   }
 }
 
@@ -308,16 +300,40 @@ const validateBodyFields = (req) => {
 }
 
 /**
- * Throws error if user is not valid (helper function)
- * @param {object} user - user object based on mongoose model
+ * Returns user object if user id is valid, else throws error (helper function)
+ * @param {string} userId - user id 
+ * @returns {object} -user mongoose model object
  */
-const isUserValid = (user) => {
+const isUserValid = async (userId) => {
+  let user;
+  try {
+    user = await User.findById(userId)
+  }
+  catch (err) {
+    //let the if block handle it (as id is invalid same error should be thrown)
+  }
   if (!user) {
     const error = new Error('User not found');
     error.statusCode = 404;
     throw error;
   }
+  return user;
 }
+
+/**
+ * Common error handler which forwards the error to main error handler aslo returns error object (helper funtion)
+ * @param {Error} err - error object 
+ * @param {Function} next function to make a call to next middleware
+ * @returns error object
+ */
+const errorHandler = (err, next) => {
+  if (!err.statusCode) {
+    err.statusCode = 500;
+  }
+  next(err);
+  return err;
+}
+
 
 module.exports = {
   register,
