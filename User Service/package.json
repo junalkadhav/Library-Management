@@ -14,10 +14,13 @@
   "description": "Provides user related data and performs other user related operations",
   "main": "app.js",
   "devDependencies": {
-    "nodemon": "^2.0.16"
+    "chai": "^4.3.6",
+    "mocha": "^10.0.0",
+    "nodemon": "^2.0.16",
+    "sinon": "^14.0.0"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha --timeout 5000",
     "start": "node app.js",
     "start:dev": "nodemon app.js"
   },
