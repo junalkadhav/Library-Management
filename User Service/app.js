@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const userRoutes = require('./routes/user');
 const authRoutes = require('./routes/auth');
 
+//initialize mongo database connection string
 const MONGO_DB_CONNECTION_URI =
   `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@library-management.8qpqy.mongodb.net/${process.env.MONGO_DEFAULT_DATABASE}?retryWrites=true&w=majority`;
 
@@ -17,6 +18,9 @@ app.use(bodyParser.json());
 //routes for incoming requests
 app.use('/user', userRoutes);
 app.use('/user', authRoutes);
+
+//handle invalid url requests
+app.use((req, res, next) => res.status(404).json({ message: 'Invalid Url' }));
 
 //common middleware to handle error thrown by controllers
 app.use((error, req, res, next) => {

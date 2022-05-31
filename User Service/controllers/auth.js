@@ -20,7 +20,8 @@ const authenticateToken = (req, res, next) => {
     decodedToken = jwt.verify(token, process.env.JSON_TOKEN_SECRET_KEY);
   }
   catch (err) {
-    err.statusCode = 500;
+    err.message = 'Invalid Session or Session Expired, Please login again!'
+    err.statusCode = 401;
     throw err;
   }
   if (!decodedToken) {

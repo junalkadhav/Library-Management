@@ -175,9 +175,7 @@ const addFavouriteBook = async (req, res, next) => {
       await currentUser.save();
     }
     catch (err) {
-      const error = new Error('Cannot add invalid Book to favourites')
-      error.statusCode = 404;
-      throw error;
+      return res.status(404).json({ message: 'Cannot add invalid Book to favourites' });
     }
     return res.status(200).json({ message: "Added book to favourites successfully" });
   }
@@ -229,28 +227,26 @@ const removeFavouriteBook = async (req, res, next) => {
  * @returns json response object 
  */
 const getUsers = async (req, res, next) => {
-  let id = req.query.id; //user id to fetch
-  if (id) {
-    id = id.trim();
+  let ids = req.query.id; //user id(s) to fetch
+
+  if (ids) {
+    ids = ids.trim(); //trim ids
+  }
+
+  let findCondition = {};
+
+  //if the ids are not empty then add "_id" property to findCondition object and assign it ids
+  if (ids) {
+    ids = ids.split(','); //if multiple ids are present split them so to pass it to "User.find()" method
+    findCondition = { _id: ids };
   }
 
   try {
-    //if id is not empty after trimming execute this if block
-    if (id) {
-      try {
-        const user = await User.findById({ _id: id }, "-password").select('-favourites');//passing the id to fetch user excluding sensitive data
-        return res.status(200).json({ message: 'fetched user', user: user });
-      }
-      catch (err) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-    }
-    //else fetch all users
-    const users = await User.find().select('-password').select('-favourites');//fetching all users excluding their sensitive data
-    return res.status(200).json({ message: 'fetched users[]', users: users });
+    const users = await User.find(findCondition).select('-password').select('-favourites');//fetching all users excluding their sensitive data
+    return res.status(200).json({ message: 'Fetched users!', users: users });
   }
   catch (err) {
-    return errorHandler(err, next);
+    return res.status(404).json({ message: 'User(s) not found!' });
   }
 }
 
@@ -272,7 +268,7 @@ const updateUserPermissions = async (req, res, next) => {
 
     //prevent changing role/status of super admin
     if (user.email === process.env.SUPER_ADMIN_EMAIL) {
-      return res.status(403).json({ message: 'Cannot update Super Admin' });
+      return res.status(403).json({ message: 'Cannot update Super Admin!' });
     }
 
     user.role = req.body.role;
@@ -292,7 +288,7 @@ const updateUserPermissions = async (req, res, next) => {
 const validateBodyFields = (req) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    const error = new Error('Validation failed.');
+    const error = new Error('Validation failed!');
     error.statusCode = 422;
     error.data = errors.array();
     throw error;
@@ -313,7 +309,7 @@ const isUserValid = async (userId) => {
     //let the if block handle it (as id is invalid same error should be thrown)
   }
   if (!user) {
-    const error = new Error('User not found');
+    const error = new Error('User not found!');
     error.statusCode = 404;
     throw error;
   }
