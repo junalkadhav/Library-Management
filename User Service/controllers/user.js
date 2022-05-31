@@ -227,11 +227,7 @@ const removeFavouriteBook = async (req, res, next) => {
  * @returns json response object 
  */
 const getUsers = async (req, res, next) => {
-  let ids = req.query.id; //user id(s) to fetch
-
-  if (ids) {
-    ids = ids.trim(); //trim ids
-  }
+  let ids = req.query.id ? req.query.id.trim() : ''; //user id(s) to fetch
 
   let findCondition = {};
 

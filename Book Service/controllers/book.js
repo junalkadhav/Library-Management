@@ -30,76 +30,46 @@ const getBooks = async (req, res, next) => {
     const booksPerPage = 4; //total no of books per page to be displayed
 
     //id represents book id(s) (seperated with comma "," if multiple)
-    let id = req.query.id;
-    if (id) {
-      id = id.trim();
-      if (id !== "") { // check if id is not an empty string
-        id = id.split(','); //converting id(s) to array to pass it to "Book.find(..)" method for querying
-      }
-    }
+    let ids = req.query.id ? req.query.id.trim() : '';
+    let fetchById = false;
     //search represents search-parameter from incoming request
-    if (req.query.search) {
-      req.query.search = req.query.search.trim();
+    let search = req.query.search ? req.query.search.trim() : '';
+    let fetchBySearch = false;
+
+    let fetchCondition = {}; //empty object which will be modified if request has id or search has valid query params
+
+    if (ids) {
+      ids = ids.split(','); //if multiple ids are present split them to set it as query for fetching
+      ids.forEach(id => {   //validate the ids if atleast one id is invalid throw error
+        if (!Book.validateBookId(id)) {
+          const error = new Error('Invalid Book');
+          error.statusCode = 404;
+          throw error;
+        }
+      });
+      fetchCondition = { _id: ids };
+      fetchById = true;
+    }
+    else if (search) {
+      fetchCondition = {  //specify fields with which the search should be carried out 
+        $or: [
+          { title: { '$regex': search, $options: 'i' } },
+          { isbn: { '$regex': search, $options: 'i' } },
+          { publicationYear: { '$regex': search, $options: 'i' } },
+          { authors: { '$regex': search, $options: 'i' } },
+          { awardsWon: { '$regex': search, $options: 'i' } },
+          { genres: { '$regex': search, $options: 'i' } }
+        ]
+      }
+      fetchBySearch = true;
     }
 
-    //if "search" exist in request body then execute this if else-if block
-    const search = req.query.search;
-    if (search) {
-      try {
-        //count the total books matching search criteria
-        const totalBooks = await Book.find({ $or: [{ title: { '$regex': search, $options: 'i' } }, { isbn: { '$regex': search, $options: 'i' } }, { publicationYear: { '$regex': search, $options: 'i' } }, { authors: { '$regex': search, $options: 'i' } }, { awardsWon: { '$regex': search, $options: 'i' } }, { genres: { '$regex': search, $options: 'i' } }] }).countDocuments();
-        //passing search query to find appropriate books in particular fields
-        const queryedBooks = await Book
-          .find({
-            $or: [
-              { title: { '$regex': search, $options: 'i' } },
-              { isbn: { '$regex': search, $options: 'i' } },
-              { publicationYear: { '$regex': search, $options: 'i' } },
-              { authors: { '$regex': search, $options: 'i' } },
-              { awardsWon: { '$regex': search, $options: 'i' } },
-              { genres: { '$regex': search, $options: 'i' } }
-            ]
-          })
-          .skip((currentPage - 1) * booksPerPage) //code to fetch data according to the pagination logic
-          .limit(booksPerPage);
-        return res.status(200).json({ message: 'Searched books successfully!', totalResultsFound: totalBooks, books: queryedBooks });
-      }
-      catch (err) {
-        console.log(err);
-        const error = new Error('Sorry, could not find anything, try searching something else!');
-        error.statusCode = 404;
-        throw error;
-      }
-    }
-    else if (search === "") { //if search is empty instead of fetching all books as search will be undefined return no results
-      return res.status(200).json({ message: 'Searched books successfully!', totalResultsFound: 0, books: [] });
-    }
-
-    //if id(s) exist then fetch those particular books
-    if (id) {
-      try {
-        //count total no of books depending on the valid id(s)
-        const totalBooks = await Book.find({ _id: id }).countDocuments();
-        //passing array of id(s) to fetch book(s)
-        const queryedBooks = await Book.find({ _id: id })
-          //code to fetch data according to the pagination logic
-          .skip((currentPage - 1) * booksPerPage)
-          .limit(booksPerPage);
-        return res.status(200).json({ message: 'Queryed books successfully!', totalBooks: totalBooks, books: queryedBooks });
-      }
-      catch (err) {
-        const error = new Error('Invalid Book'); //if atleast one id is invalid 
-        error.statusCode = 404;
-        throw error;
-      }
-    }
-    //if no query paramerters passed fetch all books
-    const totalBooks = await Book.find().countDocuments();
-    const books = await Book.find().skip((currentPage - 1) * booksPerPage).limit(booksPerPage);
-    return res.status(200).json({ message: 'Fetched books successfully!', totalBooks: totalBooks, books: books }); //return success response
+    const totalBooks = await Book.find(fetchCondition).countDocuments();
+    const books = await Book.find(fetchCondition).skip((currentPage - 1) * booksPerPage).limit(booksPerPage);
+    return res.status(200).json({ message: 'Fetched books successfully!', totalBooks: totalBooks, books: books, fetchById: fetchById, fetchBySearch: fetchBySearch }); //return success response
   }
   catch (err) {
-    next(err);
+    return databaseErrorHandler(err, next);
   }
 }
 
@@ -134,7 +104,7 @@ const createBook = async (req, res, next) => {
     return res.status(201).json({ message: 'Book created successfully!', book: createdBook });
   }
   catch (err) {
-    next(err);
+    return databaseErrorHandler(err, next);
   }
 }
 
@@ -151,7 +121,7 @@ const updateBook = async (req, res, next) => {
 
     validateBookFields(req); //validating book fields (title,isbn,.....etc)
 
-    const book = await Book.findById(bookId);
+    const book = Book.validateBookId(bookId) ? await Book.findById(bookId) : '';
     if (!book) {
       return res.status(404).json({ message: 'Invalid Book!' });
     }
@@ -169,7 +139,7 @@ const updateBook = async (req, res, next) => {
     return res.status(200).json({ message: 'Book updated successfully!', book: updatedBook });
   }
   catch (err) {
-    next(err);
+    return databaseErrorHandler(err, next);
   }
 }
 
@@ -183,16 +153,32 @@ const updateBook = async (req, res, next) => {
 const deleteBook = async (req, res, next) => {
   const bookId = req.params.bookId;
   try {
-
-    const deletedBook = await Book.findByIdAndDelete(bookId);
+    const deletedBook = Book.validateBookId(bookId) ? await Book.findByIdAndDelete(bookId) : '';
     if (!deletedBook) {
       return res.status(404).json({ message: 'Invalid Book!' });
     }
     return res.status(200).json({ message: 'Book deleted successfully!', book: deletedBook });
   }
   catch (err) {
-    next(err);
+    return databaseErrorHandler(err, next);
   }
+}
+
+/**
+ * Common error handler which forwards the error to main error handler aslo returns error object (helper funtion)
+ * @param {Error} err - error object 
+ * @param {Function} next function to make a call to next middleware
+ * @returns error object
+ */
+const databaseErrorHandler = (err, next) => {
+  if (!err.message) {
+    err.message = 'Something went wrong, try again later :(';
+  }
+  if (!err.statusCode) {
+    err.statusCode = 500;
+  }
+  next(err);
+  return err;
 }
 
 module.exports = {

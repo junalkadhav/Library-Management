@@ -33,4 +33,8 @@ const userSchema = new Schema({
   ]
 });
 
+userSchema.statics.validateUserId = function (userId) {
+  return mongoose.Types.ObjectId.isValid(userId);
+}
+
 module.exports = mongoose.model('User', userSchema);

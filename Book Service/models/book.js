@@ -29,4 +29,8 @@ const bookSchema = new Schema({
   }
 });
 
+bookSchema.statics.validateBookId = function (bookId) {
+  return mongoose.Types.ObjectId.isValid(bookId);
+}
+
 module.exports = mongoose.model('Book', bookSchema);
