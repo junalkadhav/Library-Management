@@ -30,8 +30,13 @@ const register = async (req, res, next) => {
       //assigning role of super admin if the email matches the super-admin email defined in the environmental variable,else  user role 
       role: email.toString() === process.env.SUPER_ADMIN_EMAIL ? ROLES.SUPER_ADMIN : ROLES.USER
     })
-    const registeredUser = await user.save();
-    return res.status(201).json({ message: "user registered successfully", userId: registeredUser._id });
+    try {
+      const registeredUser = await user.save();
+      return res.status(201).json({ message: "user registered successfully", userId: registeredUser._id });
+    }
+    catch (err) {
+      throwDatabaseError();
+    }
   }
   catch (err) {
     return errorHandler(err, next);
@@ -50,39 +55,48 @@ const login = async (req, res, next) => {
   const password = req.body.password;
 
   try {
-    const user = await User.findOne({ email: email })
-
-    //creating common error for invalid email and password
-    const invalidError = new Error('Invalid email or password');
-    invalidError.statusCode = 401;
-
+    let user;
+    try {
+      user = await User.findOne({ email: email });
+    }
+    catch (err) {
+      throwDatabaseError();
+    }
     //checking if user exists
     if (!user) {
-      throw invalidError;
+      throwCustomError('Invalid email or password', 401);
     }
     //checking user status
     if (user.status.toString() === Status.disabled) {
-      const error = new Error('Your account is disabled, Contact Adminstrator');
-      error.statusCode = 403;
-      throw error;
+      throwCustomError('Your account is disabled, Contact Adminstrator', 403);
     }
     //compairng the user password
-    const isEqual = await bcrypt.compare(password, user.password);
-    if (!isEqual) {
-      throw invalidError;
+    let isEqual;
+    try {
+      isEqual = await bcrypt.compare(password, user.password);
     }
-
+    catch (err) {
+      throwCustomError('Could not login due to some technical issues', 500);
+    }
+    if (!isEqual) {
+      throwCustomError('Invalid email or password', 401);
+    }
     //creating a new token after passing above checks
-    const token = jwt.sign(
-      {
-        email: user.email,
-        userId: user._id.toString(),
-        role: user.role,
-      },
-      process.env.JSON_TOKEN_SECRET_KEY,
-      { expiresIn: '10h' }
-    );
-    return res.status(200).json({ message: 'login success', token: token });//returning the token
+    try {
+      const token = jwt.sign(
+        {
+          email: user.email,
+          userId: user._id.toString(),
+          role: user.role,
+        },
+        process.env.JSON_TOKEN_SECRET_KEY,
+        { expiresIn: '10h' }
+      );
+      return res.status(200).json({ message: 'Login Success!', token: token });//returning the token
+    }
+    catch (err) {
+      throwCustomError('Could not login due to some technical issues', 500);
+    }
   }
   catch (err) {
     return errorHandler(err, next);
@@ -119,9 +133,7 @@ const getFavouriteBooks = async (req, res, next) => {
       try {
         const authHeader = req.get('Authorization');
         if (!authHeader) {
-          const error = new Error('Not authenticated.');
-          error.statusCode = 401;
-          throw error;
+          throwCustomError('Not authenticated.', 401);
         }
         //make a call to book service to fetch the book with ids also pass current page to fetch data according to pagination
         const response = await axios.get(process.env.BOOK_SERVICE_URL + `/get-books?id=${bookIds}&page=${currentPage}`, {
@@ -136,8 +148,11 @@ const getFavouriteBooks = async (req, res, next) => {
         //if axios serivce call fails then erorr data is inside err.response object extracting that data
         if (err.response) {
           err.statusCode = err.response.status;
-          err.message = err.response.statusText;
-          err.data = 'Could not find url';
+          if (err.response.data.message) {
+            err.message = err.response.data.message
+          } else {
+            err.message = err.response.statusText;
+          }
         }
         throw err;
       }
@@ -169,12 +184,17 @@ const addFavouriteBook = async (req, res, next) => {
         return res.status(400).json({ message: "Book aready in favourites" });
       }
     }
-    //if got no error then add it to favs
-    currentUser.favourites.push({ bookId: bookId });
-    try {
-      await currentUser.save();
+    //if got no error and book id is valid then add it to favs
+    if (User.validateObjectId(bookId)) {
+      currentUser.favourites.push({ bookId: bookId });
+      try {
+        await currentUser.save();
+      }
+      catch (err) {
+        throwDatabaseError();
+      }
     }
-    catch (err) {
+    else {
       return res.status(404).json({ message: 'Cannot add invalid Book to favourites' });
     }
     return res.status(200).json({ message: "Added book to favourites successfully" });
@@ -208,7 +228,12 @@ const removeFavouriteBook = async (req, res, next) => {
       }
     })
     currentUser.favourites = newFavourites;
-    await currentUser.save();
+    try {
+      await currentUser.save();
+    }
+    catch (err) {
+      throwDatabaseError();
+    }
     if (isFavourite) {
       return res.status(200).json({ message: "Removed book from favourites" });
     }
@@ -228,7 +253,6 @@ const removeFavouriteBook = async (req, res, next) => {
  */
 const getUsers = async (req, res, next) => {
   let ids = req.query.id ? req.query.id.trim() : ''; //user id(s) to fetch
-
   let findCondition = {};
 
   //if the ids are not empty then add "_id" property to findCondition object and assign it ids
@@ -236,7 +260,6 @@ const getUsers = async (req, res, next) => {
     ids = ids.split(','); //if multiple ids are present split them so to pass it to "User.find()" method
     findCondition = { _id: ids };
   }
-
   try {
     const users = await User.find(findCondition).select('-password').select('-favourites');//fetching all users excluding their sensitive data
     return res.status(200).json({ message: 'Fetched users!', users: users });
@@ -269,8 +292,13 @@ const updateUserPermissions = async (req, res, next) => {
 
     user.role = req.body.role;
     user.status = req.body.status;
-    updatedUser = await user.save();
-    return res.status(200).json({ message: 'Updated User Status/Role ', role: updatedUser.role, status: updatedUser.status });
+    try {
+      const updatedUser = await user.save();
+      return res.status(200).json({ message: 'Updated User Status/Role ', role: updatedUser.role, status: updatedUser.status });
+    }
+    catch (err) {
+      throwDatabaseError();
+    }
   }
   catch (err) {
     return errorHandler(err, next);
@@ -284,30 +312,32 @@ const updateUserPermissions = async (req, res, next) => {
 const validateBodyFields = (req) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    const error = new Error('Validation failed!');
-    error.statusCode = 422;
-    error.data = errors.array();
-    throw error;
+    throwCustomError('Validation failed!', 422, errors.array());
+    // const error = new Error('Validation failed!');
+    // error.statusCode = 422;
+    // error.data = errors.array();
+    // throw error;
   }
 }
 
 /**
  * Returns user object if user id is valid, else throws error (helper function)
- * @param {string} userId - user id 
- * @returns {object} -user mongoose model object
+ * @param {String} userId - user id 
+ * @returns {Object} -user mongoose model object
  */
 const isUserValid = async (userId) => {
   let user;
   try {
-    user = await User.findById(userId)
+    user = User.validateObjectId(userId) ? await User.findById(userId) : '';
   }
   catch (err) {
     //let the if block handle it (as id is invalid same error should be thrown)
   }
   if (!user) {
-    const error = new Error('User not found!');
-    error.statusCode = 404;
-    throw error;
+    throwCustomError('User not found!', 404);
+    // const error = new Error('User not found!');
+    // error.statusCode = 404;
+    // throw error;
   }
   return user;
 }
@@ -326,6 +356,27 @@ const errorHandler = (err, next) => {
   return err;
 }
 
+/**
+ * This method throws error on call with custom message and statusCode
+ * @param {String} message - custom message
+ * @param {Number} statusCode - custom status code
+ * @param {Object} optionalErrorData - any extra info about the error
+ */
+const throwCustomError = (message, statusCode, optionalErrorData) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  if (optionalErrorData) {
+    error.data = optionalErrorData;
+  }
+  throw error;
+}
+
+/**
+ * This method throws error on call which has a error defined for database related operations
+ */
+const throwDatabaseError = () => {
+  throwCustomError('Something went wrong, try again later :(', 500);
+}
 
 module.exports = {
   register,

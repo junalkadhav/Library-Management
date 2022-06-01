@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const ObjectId = require('mongoose').Types.ObjectId;
 
 const Schema = mongoose.Schema;
 
@@ -29,8 +30,11 @@ const bookSchema = new Schema({
   }
 });
 
-bookSchema.statics.validateBookId = function (bookId) {
-  return mongoose.Types.ObjectId.isValid(bookId);
+bookSchema.statics.validateObjectId = function (id) {
+  if (ObjectId.isValid(id))
+    if ((String)(new ObjectId(id)) === id)
+      return true;
+  return false;
 }
 
 module.exports = mongoose.model('Book', bookSchema);

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const ObjectId = require('mongoose').Types.ObjectId;
 
 const Roles = require('./roles');
 const Status = require('./status');
@@ -28,13 +29,16 @@ const userSchema = new Schema({
   },
   favourites: [
     {
-      bookId: { type: Schema.Types.ObjectId, required: true }
+      bookId: { type: Schema.Types.ObjectId, required: true, unique: true, dropDups: true }
     }
   ]
 });
 
-userSchema.statics.validateUserId = function (userId) {
-  return mongoose.Types.ObjectId.isValid(userId);
+userSchema.statics.validateObjectId = function (id) {
+  if (ObjectId.isValid(id))
+    if ((String)(new ObjectId(id)) === id)
+      return true;
+  return false;
 }
 
 module.exports = mongoose.model('User', userSchema);

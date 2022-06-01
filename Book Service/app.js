@@ -16,6 +16,9 @@ app.use(bodyParser.json());
 //specifying routes incoming requests can reach
 app.use('/book', bookRoutes);
 
+//handle invalid url requests
+app.use((req, res, next) => res.status(404).json({ message: 'Invalid Url' }));
+
 //common error handler for controller functions
 app.use((error, req, res, next) => {
   console.log(error);

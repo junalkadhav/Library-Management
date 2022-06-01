@@ -5,7 +5,6 @@ const mongoose = require('mongoose');
 
 const User = require('../models/user');
 const ROLES = require('../models/roles');
-const Status = require('../models/status');
 const UserController = require('../controllers/user');
 
 const MONGO_DB_CONNECTION_URI =
@@ -17,7 +16,7 @@ let user;
 describe('User Controller', function () {
   /**
    * This funtion runs only once, when the script starts
-   * set up a another database for testing purpose and create a dummy user
+   * this method set's up a another database for testing purpose and create a dummy user
    */
   before(function (done) {
     mongoose.connect(MONGO_DB_CONNECTION_URI)
@@ -25,7 +24,7 @@ describe('User Controller', function () {
         const user = new User({
           name: 'test test',
           email: 'test@test.com',
-          password: 'tester',
+          password: 'testerrr',
           role: ROLES.USER
         })
         return user.save();
@@ -40,12 +39,12 @@ describe('User Controller', function () {
   /**
    * Test to check success response after successfull user registration
    */
-  it('Should return code 200 after successfully registering user', function (done) {
+  it('Should return code 201 after successfully registering user', function () {
     req = {
       body: {
         name: 'tester',
-        email: 'test@test.com',
-        password: 'tester'
+        email: 'test1@test1.com',
+        password: 'testerrr'
       }
     }
     const res = {
@@ -63,14 +62,13 @@ describe('User Controller', function () {
       .then(() => {
         expect(res.statusCode).to.be.equal(201);
         expect(res.message).to.be.equal('user registered successfully');
-        done();
-      }).catch(done)
+      })
   })
 
   /**
    * Test the login method if accessing the database fails
    */
-  it('Should throw an error with code 500 if accessing the database fails', function (done) {
+  it('Should throw an error with code 500 if accessing the database fails while logging in', function (done) {
     sinon.stub(User, 'findOne');
     User.findOne.throws();
 

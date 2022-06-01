@@ -29,14 +29,18 @@ const authenticateToken = async (req, res, next) => {
       //if axios serivce call fails then erorr data is inside err.response object extracting that data
       if (err.response) {
         err.statusCode = err.response.status;
-        err.message = err.response.statusText;
-        err.data = 'Could not find url';
+        if (err.response.data.message) {
+          err.message = err.response.data.message
+        } else {
+          err.message = err.response.statusText;
+        }
       }
       throw (err);
     }
   }
   catch (err) {
     next(err);
+    return err;
   }
 }
 
