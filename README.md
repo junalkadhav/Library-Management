@@ -1,8 +1,8 @@
 # Library-Management 
 ## This project uses Node.js Microservices and RESTful APIs
 This project demonstrates digital book library management system, In this project there are two Microservices as listed below:
-- [User Service](User%20Service#User%20Service)
-- [Book Service](Book%20Service#Book%20Service)
+- [User Service](User%20Service#User-Service)
+- [Book Service](Book%20Service#Book-Service)
 
 ### Overview
 These services communicate each other via RESTful APIs. All user realted service's are provided by user service, and all the book realted service's are provided by book service.
