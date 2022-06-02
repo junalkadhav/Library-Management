@@ -9,3 +9,5 @@ Available endpoints:
 | POST   |`/create-book`       ||`{"title":"bleh","isbn":"12345","publicationYear":"2022","authors":["sam"],"genres":["comedy"],"awardsWon":["big"]}`             |
 | PUT    |`/update-book/bookId`|Needs path parameter ( i.e bookId ) |`{"title":"bleh","isbn":"12345","publicationYear":"2022","authors":["sam"],"genres":["comedy"],"awardsWon":["big"]}`|
 | DELETE |`/delete-book/bookId`|   Needs path parameter ( i.e bookId )                                                        |                                   |
+
+*In order to use these services you need to send Bearer Token with each request you make, token will be generated after successfull login*
