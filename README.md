@@ -8,7 +8,7 @@ This project demonstrates digital book library management system, In this projec
 These services communicate each other via RESTful APIs. All user realted service's are provided by user service, and all the book realted service's are provided by book service.
 
 In this application there are three type of user roles available:
-- Super-Admin - Manages all the user's ( change user role [ SuperAdmin, Admin, User ] change user status [ active, disabled ] )
+- Super-Admin - Manages all the user's ( change user role [ superAdmin, admin, user ] change user status [ active, disabled ] )
 - Admin - Manages books ( perform CRUD operations on books )
 - User - Can access books, mark them as favourites and remove them from favourites.
 
