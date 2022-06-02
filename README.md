@@ -89,4 +89,3 @@ Use following command inside a particular `SERVICE` folder to run tests for that
 ```sh
 npm test
 ```
-

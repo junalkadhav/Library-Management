@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "start:dev": "nodemon app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha --timeout 5000"
   },
   "author": "Kunal Jadhav",
   "license": "ISC",
@@ -19,6 +19,9 @@
     "mongoose": "^6.3.4"
   },
   "devDependencies": {
-    "nodemon": "^2.0.16"
+    "chai": "^4.3.6",
+    "mocha": "^10.0.0",
+    "nodemon": "^2.0.16",
+    "sinon": "^14.0.0"
   }
 }

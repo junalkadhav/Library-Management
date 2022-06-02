@@ -45,7 +45,7 @@ const authenticateToken = (req, res, next) => {
  * @returns json response object
  */
 const authorizeUser = (req, res, next) => {
-  return res.json({ success: true, userId: req.userId, role: req.role })
+  return res.json({ authenticated: true, userId: req.userId, role: req.role })
 }
 
 /**
